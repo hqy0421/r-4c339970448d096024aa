@@ -45,6 +45,7 @@ public class CommandLineApp {
     private OutputFormat outputFormat;
     private String password;
     private TableExtractor tableExtractor;
+    private ExtractionPlan extractionPlan;
 
     public CommandLineApp(Appendable defaultOutput, CommandLine line) throws ParseException {
         this.defaultOutput = defaultOutput;
@@ -52,6 +53,7 @@ public class CommandLineApp {
         this.pages = CommandLineApp.whichPages(line);
         this.outputFormat = CommandLineApp.whichOutputFormat(line);
         this.tableExtractor = CommandLineApp.createExtractor(line);
+        this.extractionPlan = CommandLineApp.whichExtractionPlan(line);
 
         if (line.hasOption('s')) {
             this.password = line.getOptionValue('s');
@@ -166,13 +168,17 @@ public class CommandLineApp {
             while (pageIterator.hasNext()) {
                 Page page = pageIterator.next();
 
-                if (tableExtractor.verticalRulingPositions != null) {
+                // An extraction plan fully describes what to read and how, so
+                // explicit column boundaries do not apply to it.
+                if (extractionPlan == null && tableExtractor.verticalRulingPositions != null) {
                     for (Float verticalRulingPosition : tableExtractor.verticalRulingPositions) {
                         page.addRuling(new Ruling(0, verticalRulingPosition, 0.0f, (float) page.getHeight()));
                     }
                 }
 
-                if (pageAreas != null) {
+                if (extractionPlan != null) {
+                    tables.addAll(extractionPlan.extract(page));
+                } else if (pageAreas != null) {
                     for (Pair<Integer, Rectangle> areaPair : pageAreas) {
                         Rectangle area = areaPair.getRight();
                         if (areaPair.getLeft() == RELATIVE_AREA_CALCULATION_MODE) {
@@ -251,6 +257,17 @@ public class CommandLineApp {
     private static List<Integer> whichPages(CommandLine line) throws ParseException {
         String pagesOption = line.hasOption('p') ? line.getOptionValue('p') : "1";
         return Utils.parsePagesOption(pagesOption);
+    }
+
+    private static ExtractionPlan whichExtractionPlan(CommandLine line) throws ParseException {
+        if (!line.hasOption("plan")) {
+            return null;
+        }
+        File planFile = new File(line.getOptionValue("plan"));
+        if (!planFile.isFile()) {
+            throw new ParseException("Extraction plan file does not exist: " + planFile.getPath());
+        }
+        return ExtractionPlan.fromFile(planFile);
     }
 
     private static ExtractionMethod whichExtractionMethod(CommandLine line) {
@@ -363,6 +380,13 @@ public class CommandLineApp {
                 .desc("Comma separated list of ranges, or all. Examples: --pages 1-3,5-7, --pages 3 or --pages all. Default is --pages 1")
                 .hasArg()
                 .argName("PAGES")
+                .build());
+        o.addOption(Option.builder()
+                .longOpt("plan")
+                .desc("Extract the named regions described in the given JSON extraction plan, each region with its own "
+                        + "lattice/stream mode. Takes precedence over --area and --columns.")
+                .hasArg()
+                .argName("PLAN")
                 .build());
 
         return o;

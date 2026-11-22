@@ -71,6 +71,50 @@ Tabula helps you extract tables from PDFs
 
 It also includes a debugging tool, run `java -cp ./target/tabula-1.0.5-jar-with-dependencies.jar technology.tabula.debug.Debug -h` for the available options.
 
+### Extraction plans (mixed lattice/stream regions)
+
+Some PDFs put a framed "settlement summary" table and an unframed detail
+table on the same page. `--plan` accepts a reusable JSON file that names each
+region, gives its bounds (same coordinate system as `--area`), and picks the
+extraction mode for that region, so a single run can use lattice for one
+region and stream for another:
+
+```json
+{
+  "minimum_coverage": 0.5,
+  "regions": [
+    { "name": "settlement-summary", "mode": "lattice",
+      "top": 60, "left": 40, "bottom": 430, "right": 560 },
+    { "name": "line-items", "mode": "stream", "area": "%55,0,100,100" }
+  ]
+}
+```
+
+Bounds may be given either as `top`/`left`/`bottom`/`right` numbers or as a
+single `area` string (`"top,left,bottom,right"`, with an optional `%` prefix
+for page-relative coordinates) or a four-number array. Region names must be
+unique. `mode` is `"lattice"` or `"stream"` and may be supplied per region or
+once through the plan-level `default_mode`.
+
+When regions overlap, each character is assigned to at most one region: its
+coverage ratio is computed for every region, regions below `minimum_coverage`
+(default `0.5`) are ignored, and the largest ratio wins. Ties go to the region
+with the smaller area and then to the region declared first. A region
+extracts only the characters assigned to it; lattice regions still use the
+ruling lines that fall inside their bounds. If a lattice region produces no
+cells at all (for example, it has no ruling lines), its text is extracted with
+stream instead, and the table reports `"stream"` as its actual mode.
+
+```
+$ java -jar target/tabula-1.0.5-jar-with-dependencies.jar \
+    invoice.pdf --plan invoice-plan.json -f JSON
+```
+
+Tables are emitted by page and then in region declaration order. In JSON, each
+table gains a `region_name` field next to the actual `extraction_method`
+(`"lattice"` or `"stream"`). Without `--plan`, behavior and output are
+unchanged.
+
 You can also integrate `tabula-java` with any JVM language. For Java examples, see the [`tests`](src/test/java/technology/tabula/) folder.
 
 JVM start-up time is a lot of the cost of the `tabula` command, so if you're trying to extract many tables from PDFs, you have a few options for speeding it up:

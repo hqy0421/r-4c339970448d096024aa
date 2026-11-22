@@ -21,6 +21,8 @@ public class Table extends Rectangle {
 
 	private final String extractionMethod;
 
+	private String regionName = null;
+
 	private int rowCount = 0;
 	private int colCount = 0;
 	private int pageNumber = 0;
@@ -33,6 +35,13 @@ public class Table extends Rectangle {
 	public void setPageNumber(int pageNumber) {	this.pageNumber = pageNumber; }
 
 	public String getExtractionMethod() { return extractionMethod; }
+
+	/**
+	 * Name of the extraction-plan region this table came from, or {@code null}
+	 * for tables extracted without a plan.
+	 */
+	public String getRegionName() { return regionName; }
+	public void setRegionName(String regionName) { this.regionName = regionName; }
 
 	public void add(RectangularTextContainer chunk, int row, int col) {
 		this.merge(chunk);
